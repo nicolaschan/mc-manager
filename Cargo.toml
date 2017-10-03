@@ -1,0 +1,14 @@
+[package]
+name = "mc-manager"
+version = "0.1.0"
+authors = ["Nicolas Chan <nicolas@nicolaschan.com>"]
+
+[dependencies]
+clap = "2.26.2"
+flate2 = "0.2.20"
+reqwest = "0.7.3"
+serde = "*"
+serde_derive = "1.0.15"
+tar = "0.4.13"
+time = "0.1.38"
+toml = "0.4.5"
