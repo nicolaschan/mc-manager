@@ -6,7 +6,9 @@ extern crate serde_derive;
 extern crate tar;
 extern crate toml;
 
-pub mod minecraft_api;
+mod minecraft_api;
+mod backup;
+mod files;
 
 use clap::{Arg, App, AppSettings, SubCommand};
 use flate2::write::GzEncoder;
@@ -19,47 +21,9 @@ use std::io::{Read, Write};
 use std::process::{Command, Stdio};
 use tar::Builder;
 
-static MANAGER_DIR_NAME: &str = ".mc-manager";
-
-// Config file structs
-#[derive(Serialize, Deserialize)]
-struct Config {
-    server: String,
-    version: String,
-    screen: String,
-    backup: BackupConfig 
-}
-#[derive(Serialize, Deserialize)]
-struct BackupConfig {
-    dir: String
-}
-
-fn write_file(path: PathBuf, data: String) -> Result<(), std::io::Error> {
-    let mut file = File::create(&path)?;
-    return file.write_all(&data.as_bytes());
-}
-
-fn read_file(path: &Path) -> Result<String, std::io::Error> {
-    let mut contents = String::new();
-    let mut file = File::open(path)?;
-    file.read_to_string(&mut contents)?;
-    Ok(contents)
-}
-
-fn get_config(server: &String) -> Result<Config, Box<std::error::Error>> {
-    let config_path = Path::new(server).join(MANAGER_DIR_NAME).join("ManagerConfig.toml");
-    let mut toml = String::new();
-    let mut config_file = File::open(config_path)?;
-    config_file.read_to_string(&mut toml)?;
-    return match toml::from_str(&toml) {
-        Ok(res) => Ok(res),
-        Err(err) => Err(Box::new(err))
-    };
-}
-
 fn start(server: String, verbose: bool) -> Result<(), Box<::std::error::Error>> {
     let server_dir_path = Path::new(&server);
-    let screen_name = get_config(&server)?.screen;
+    let screen_name = files::get_config(&server)?.screen;
 
     // Start a new screen for the server
     if verbose { println!("Starting screen {}", screen_name); }
@@ -72,48 +36,13 @@ fn start(server: String, verbose: bool) -> Result<(), Box<::std::error::Error>> 
     Ok(())
 }
 
-fn backup(server: String, backup_dir: Option<String>, verbose: bool) -> Result<(), Box<::std::error::Error>> {
-    let server_dir_path = Path::new(&server);
-
-    // Determine which backup directory to use
-    let backup_dir = match backup_dir {
-        Some(d) => d,
-        None => get_config(&server)?.backup.dir
-    };
-    let backup_dir_path = PathBuf::from(&backup_dir);
-    let backup_dir_path = match backup_dir_path.is_relative() {
-        true => server_dir_path.join(&backup_dir),
-        false => backup_dir_path
-    };
-    fs::create_dir_all(&backup_dir_path)?;
-
-    // Determine path to world folder
-    let world_path = server_dir_path.join("world");
-    
-    // Perform backup
-    // Thanks to: https://stackoverflow.com/a/46521163/8706910
-    let compressed_path = backup_dir_path.join("backup.tar.gz");
-    if verbose { println!("Backing up {:?} to {:?}", world_path, compressed_path); }
-    let compressed_file = File::create(compressed_path)?;
-    let mut encoder = GzEncoder::new(compressed_file, Compression::Default);
-
-    {
-        let mut archive = Builder::new(&mut encoder);
-        archive.append_dir_all("world", world_path)?;
-    }
-
-    encoder.finish()?;
-    
-    Ok(())
-}
-
 fn update(server: String, version: Option<String>, verbose: bool) -> Result<(), Box<::std::error::Error>> {
-    let manager_dir_path = Path::new(&server).join(MANAGER_DIR_NAME);
+    let manager_dir_path = Path::new(&server).join(files::MANAGER_DIR_NAME);
 
     // Determine which version to use
     let version = match version {
         Some(v) => v,
-        None => get_config(&server)?.version
+        None => files::get_config(&server)?.version
     };
     let version = match version.as_str() {
         "release" => minecraft_api::version_manifest()?.latest.release,
@@ -124,7 +53,7 @@ fn update(server: String, version: Option<String>, verbose: bool) -> Result<(), 
     // Download minecraft_server.jar
     let current_version_path = manager_dir_path.join("current_version.txt");
     let current_version = match current_version_path.exists() {
-        true => read_file(&current_version_path)?,
+        true => files::read_file(&current_version_path)?,
         false => "none".to_string() 
     };
 
@@ -138,7 +67,7 @@ fn update(server: String, version: Option<String>, verbose: bool) -> Result<(), 
     }
 
     // Record installed version
-    write_file(
+    files::write_file(
         manager_dir_path.join("current_version.txt"),
         version)?; 
 
@@ -155,14 +84,14 @@ fn create(server: String,
           ) -> Result<(), Box<::std::error::Error>> {
     // Create server directory
     let server_dir_path = PathBuf::from(&server);
-    let manager_dir_path = server_dir_path.join(MANAGER_DIR_NAME);
+    let manager_dir_path = server_dir_path.join(files::MANAGER_DIR_NAME);
     fs::create_dir_all(&manager_dir_path)?;
 
     // Serialize the options into TOML
-    let backup_config = BackupConfig {
+    let backup_config = files::BackupConfig {
         dir: backup_dir
     };
-    let config = Config {
+    let config = files::Config {
         server: server.clone(),
         version: version,
         screen: screen,
@@ -172,7 +101,7 @@ fn create(server: String,
 
     // Write the TOML to ManagerConfig.toml
     if verbose { println!("Writing ManagerConfig.toml"); }
-    write_file(
+    files::write_file(
         manager_dir_path.join("ManagerConfig.toml"), 
         toml)?;
     
@@ -181,13 +110,13 @@ fn create(server: String,
         "#!/bin/sh\njava -jar -Xms{} -Xmx{} minecraft_server.jar nogui",
         xms, xmx);
     if verbose { println!("Writing start-server.sh"); }
-    write_file(
+    files::write_file(
         server_dir_path.join("start-server.sh"),
         start_script)?;
 
     // Write eula.txt
     if verbose { println!("Writing eula.txt"); }
-    write_file(
+    files::write_file(
         server_dir_path.join("eula.txt"),
         "eula=true".to_string())?;
 
@@ -306,7 +235,7 @@ fn main() {
         let dir = backup.value_of("backup_dir").map(|s| s.to_string());
         let verbose = backup.is_present("verbose");
 
-        match ::backup(server, dir, verbose) {
+        match backup::backup(server, dir, verbose) {
             Ok(_) => (),
             Err(err) => println!("{}", err.description())
         }

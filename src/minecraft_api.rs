@@ -1,7 +1,7 @@
 extern crate reqwest;
 
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::io::{Read, Write};
 
 #[derive(Deserialize)]
