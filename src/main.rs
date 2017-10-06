@@ -6,6 +6,8 @@ extern crate serde_derive;
 extern crate tar;
 extern crate toml;
 
+pub mod minecraft_api;
+
 use clap::{Arg, App, AppSettings, SubCommand};
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -55,46 +57,13 @@ fn get_config(server: &String) -> Result<Config, Box<std::error::Error>> {
     };
 }
 
-#[derive(Deserialize)]
-struct Manifest {
-    latest: Latest,
-}
-#[derive(Deserialize)]
-struct Latest {
-    snapshot: String,
-    release: String,
-}
-
-fn version_manifest() -> Result<Manifest, reqwest::Error> {
-    return reqwest::get("https://launchermeta.mojang.com/mc/game/version_manifest.json")?
-        .json();
-}
-/*
-impl error::Error for DownloadError {
-    fn description(&self) -> &str {
-        match *self {
-            std::io::Error(err) => "Error writing file",
- */           
-
-fn download_server(path: &Path, version: &String) -> Result<(), Box<::std::error::Error>> {
-    let url = format!(
-        "https://s3.amazonaws.com/Minecraft.Download/versions/{}/minecraft_server.{}.jar", 
-        *version, *version); 
-    let mut server_jar = Vec::new();
-    reqwest::get(&url)?.read_to_end(&mut server_jar)?;
-    let mut server_jar_file = File::create(path)?;
-    
-    server_jar_file.write_all(&server_jar)?; 
-    
-    Ok(())
-}
-
 fn start(server: String, verbose: bool) -> Result<(), Box<::std::error::Error>> {
     let server_dir_path = Path::new(&server);
     let screen_name = get_config(&server)?.screen;
 
     // Start a new screen for the server
-    let cmd = Command::new("screen")
+    if verbose { println!("Starting screen {}", screen_name); }
+    Command::new("screen")
         .args(&["-dmS", screen_name.as_str(), "./start-server.sh"])
         .current_dir(&server_dir_path)
         .stdout(Stdio::inherit())
@@ -147,8 +116,8 @@ fn update(server: String, version: Option<String>, verbose: bool) -> Result<(), 
         None => get_config(&server)?.version
     };
     let version = match version.as_str() {
-        "release" => version_manifest()?.latest.release,
-        "snapshot" => version_manifest()?.latest.snapshot,
+        "release" => minecraft_api::version_manifest()?.latest.release,
+        "snapshot" => minecraft_api::version_manifest()?.latest.snapshot,
         _ => version
     }.to_string();
 
@@ -161,7 +130,7 @@ fn update(server: String, version: Option<String>, verbose: bool) -> Result<(), 
 
     if current_version != version {
         if verbose { println!("Downloading minecraft_server.{}.jar", version); }
-        download_server(
+        minecraft_api::download_server(
             &Path::new(&server).join("minecraft_server.jar"),
             &version)?;
     } else {

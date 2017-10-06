@@ -1,5 +1,5 @@
 [package]
-name = "mc-manager"
+name = "mcmgr"
 version = "0.1.0"
 authors = ["Nicolas Chan <nicolas@nicolaschan.com>"]
 
