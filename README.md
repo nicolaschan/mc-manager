@@ -20,8 +20,8 @@ You will need to [install Rust](https://www.rust-lang.org/en-US/install.html).
 1. `git clone https://github.com/nicolaschan/mc-manager.git`
 2. `cargo build --release`
 
-The `mc-manager` binary will be in `target/release`.
+The `mcmgr` binary will be in `target/release`.
 
 ## Usage
-See usage on `./mc-manager --help`
+See usage on `./mcmgr --help`
 
