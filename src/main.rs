@@ -6,123 +6,14 @@ extern crate serde_derive;
 extern crate tar;
 extern crate toml;
 
-mod minecraft_api;
 mod backup;
+mod create;
 mod files;
+mod minecraft_api;
+mod start;
+mod update;
 
 use clap::{Arg, App, AppSettings, SubCommand};
-use flate2::write::GzEncoder;
-use flate2::Compression;
-use std::fs;
-use std::fs::File;
-use std::path::{Path, PathBuf};
-use std::result::Result;
-use std::io::{Read, Write};
-use std::process::{Command, Stdio};
-use tar::Builder;
-
-fn start(server: String, verbose: bool) -> Result<(), Box<::std::error::Error>> {
-    let server_dir_path = Path::new(&server);
-    let screen_name = files::get_config(&server)?.screen;
-
-    // Start a new screen for the server
-    if verbose { println!("Starting screen {}", screen_name); }
-    Command::new("screen")
-        .args(&["-dmS", screen_name.as_str(), "./start-server.sh"])
-        .current_dir(&server_dir_path)
-        .stdout(Stdio::inherit())
-        .spawn()?;
-
-    Ok(())
-}
-
-fn update(server: String, version: Option<String>, verbose: bool) -> Result<(), Box<::std::error::Error>> {
-    let manager_dir_path = Path::new(&server).join(files::MANAGER_DIR_NAME);
-
-    // Determine which version to use
-    let version = match version {
-        Some(v) => v,
-        None => files::get_config(&server)?.version
-    };
-    let version = match version.as_str() {
-        "release" => minecraft_api::version_manifest()?.latest.release,
-        "snapshot" => minecraft_api::version_manifest()?.latest.snapshot,
-        _ => version
-    }.to_string();
-
-    // Download minecraft_server.jar
-    let current_version_path = manager_dir_path.join("current_version.txt");
-    let current_version = match current_version_path.exists() {
-        true => files::read_file(&current_version_path)?,
-        false => "none".to_string() 
-    };
-
-    if current_version != version {
-        if verbose { println!("Downloading minecraft_server.{}.jar", version); }
-        minecraft_api::download_server(
-            &Path::new(&server).join("minecraft_server.jar"),
-            &version)?;
-    } else {
-        if verbose { println!("Already updated to {}", version); }
-    }
-
-    // Record installed version
-    files::write_file(
-        manager_dir_path.join("current_version.txt"),
-        version)?; 
-
-    Ok(())
-}
-
-fn create(server: String, 
-          version: String, 
-          screen: String, 
-          xmx: String, 
-          xms: String, 
-          backup_dir: String,
-          verbose: bool
-          ) -> Result<(), Box<::std::error::Error>> {
-    // Create server directory
-    let server_dir_path = PathBuf::from(&server);
-    let manager_dir_path = server_dir_path.join(files::MANAGER_DIR_NAME);
-    fs::create_dir_all(&manager_dir_path)?;
-
-    // Serialize the options into TOML
-    let backup_config = files::BackupConfig {
-        dir: backup_dir
-    };
-    let config = files::Config {
-        server: server.clone(),
-        version: version,
-        screen: screen,
-        backup: backup_config 
-    };
-    let toml = toml::to_string(&config)?;
-
-    // Write the TOML to ManagerConfig.toml
-    if verbose { println!("Writing ManagerConfig.toml"); }
-    files::write_file(
-        manager_dir_path.join("ManagerConfig.toml"), 
-        toml)?;
-    
-    // Write start-server.sh
-    let start_script = format!(
-        "#!/bin/sh\njava -jar -Xms{} -Xmx{} minecraft_server.jar nogui",
-        xms, xmx);
-    if verbose { println!("Writing start-server.sh"); }
-    files::write_file(
-        server_dir_path.join("start-server.sh"),
-        start_script)?;
-
-    // Write eula.txt
-    if verbose { println!("Writing eula.txt"); }
-    files::write_file(
-        server_dir_path.join("eula.txt"),
-        "eula=true".to_string())?;
-
-    // Update server
-    return update(server, None, verbose);
-}
 
 fn main() {
     let app = App::new("mc-manager")
@@ -215,7 +106,7 @@ fn main() {
         let backup_dir = create.value_of("backup_dir").unwrap().to_string();
         let verbose = create.is_present("verbose");
 
-        match ::create(server, version, screen, xmx, xms, backup_dir, verbose) {
+        match create::create(server, version, screen, xmx, xms, backup_dir, verbose) {
             Ok(_) => (),
             Err(err) => println!("{}", err.description())
         }
@@ -225,7 +116,7 @@ fn main() {
         let version = update.value_of("version").map(|s| s.to_string());
         let verbose = update.is_present("verbose");
 
-        match ::update(server, version, verbose) {
+        match update::update(server, version, verbose) {
             Ok(_) => (),
             Err(err) => println!("{}", err.description())
         }
@@ -244,7 +135,7 @@ fn main() {
         let server = start.value_of("server").unwrap().to_string();
         let verbose = start.is_present("verbose");
 
-        match ::start(server, verbose) {
+        match start::start(server, verbose) {
             Ok(_) => (),
             Err(err) => println!("{}", err.description())
         }

@@ -1,20 +1,10 @@
-extern crate clap;
-extern crate flate2;
-extern crate reqwest;
-extern crate tar;
 extern crate toml;
 extern crate std;
 
-use clap::{Arg, App, AppSettings, SubCommand};
-use flate2::write::GzEncoder;
-use flate2::Compression;
-use std::fs;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::result::Result;
-use std::io::{Error, Read, Write};
-use std::process::{Command, Stdio};
-use tar::Builder;
+use std::io::{Read, Write};
 
 pub static MANAGER_DIR_NAME: &str = ".mc-manager";
 

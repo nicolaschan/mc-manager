@@ -6,15 +6,12 @@ extern crate toml;
 
 use files;
 
-use clap::{Arg, App, AppSettings, SubCommand};
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use std::fs;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::result::Result;
-use std::io::{Read, Write};
-use std::process::{Command, Stdio};
 use tar::Builder;
 
 pub fn backup(server: String, backup_dir: Option<String>, verbose: bool) -> Result<(), Box<::std::error::Error>> {
