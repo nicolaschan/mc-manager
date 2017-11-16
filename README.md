@@ -17,9 +17,10 @@ This is a work in progress. Use at your own risk.
 ### Build from source
 You will need to [install Rust](https://www.rust-lang.org/en-US/install.html).
 
-1. `git clone https://github.com/nicolaschan/mc-manager.git`
-2. `cargo build --release`
-
+```bash
+git clone https://github.com/nicolsaschan/mc-manager.git && cd mc-mangaer
+cargo build --release
+```
 The `mcmgr` binary will be in `target/release`.
 
 ## Usage
