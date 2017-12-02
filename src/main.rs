@@ -1,3 +1,4 @@
+extern crate chrono;
 extern crate clap;
 extern crate flate2;
 extern crate reqwest;
@@ -5,8 +6,11 @@ extern crate reqwest;
 extern crate serde_derive;
 extern crate tar;
 extern crate toml;
+extern crate xz2;
+extern crate zstd;
 
 mod backup;
+mod compression;
 mod create;
 mod files;
 mod minecraft_api;
@@ -40,6 +44,15 @@ fn main() {
                  .help("Directory to save backups in (relative to server directory or absolute)")
                  .long("backup-dir")
                  .default_value("backups")
+                 .takes_value(true))
+            .arg(Arg::with_name("max_backups")
+                 .help("Maximum number of backups to keep (will delete after exceeds limit)")
+                 .long("max-backups")
+                 .takes_value(true))
+            .arg(Arg::with_name("compression")
+                 .help("Compression algorithm to use (gzip, lzma, zstd)")
+                 .long("compression")
+                 .default_value("gzip")
                  .takes_value(true)))
         .subcommand(
             SubCommand::with_name("create")
@@ -83,6 +96,14 @@ fn main() {
                 .default_value(".")
                 .index(1)))
         .subcommand(
+            SubCommand::with_name("stop")
+            .setting(AppSettings::ColoredHelp)
+            .about("Stop a Minecraft server")
+            .arg(Arg::with_name("server")
+                 .help("The Minecraft server directory to use")
+                 .default_value(".")
+                 .index(1)))
+        .subcommand(
             SubCommand::with_name("update")
             .setting(AppSettings::ColoredHelp)
             .about("Change the version of a Minecraft server")
@@ -124,9 +145,10 @@ fn main() {
     if let Some(backup) = app.subcommand_matches("backup") {
         let server = backup.value_of("server").unwrap().to_string();
         let dir = backup.value_of("backup_dir").map(|s| s.to_string());
+        let max_backups = backup.value_of("max_backups").map(|s| s.parse::<usize>().unwrap());
         let verbose = backup.is_present("verbose");
 
-        match backup::backup(server, dir, verbose) {
+        match backup::backup(server, dir, max_backups, verbose) {
             Ok(_) => (),
             Err(err) => println!("{}", err.description())
         }
@@ -136,6 +158,15 @@ fn main() {
         let verbose = start.is_present("verbose");
 
         match start::start(server, verbose) {
+            Ok(_) => (),
+            Err(err) => println!("{}", err.description())
+        }
+    }
+    if let Some(stop) = app.subcommand_matches("stop") {
+        let server = stop.value_of("server").unwrap().to_string();
+        let verbose = stop.is_present("verbose");
+
+        match start::stop(server, verbose) {
             Ok(_) => (),
             Err(err) => println!("{}", err.description())
         }

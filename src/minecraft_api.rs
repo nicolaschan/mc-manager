@@ -1,8 +1,11 @@
+extern crate broadcast;
+extern crate pbr;
 extern crate reqwest;
 
+use reqwest::header::ContentLength;
 use std::fs::File;
 use std::path::Path;
-use std::io::{Read, Write};
+use std::io::{copy, Read, Write};
 
 #[derive(Deserialize)]
 pub struct Manifest {
@@ -23,11 +26,20 @@ pub fn download_server(path: &Path, version: &String) -> Result<(), Box<::std::e
     let url = format!(
         "https://s3.amazonaws.com/Minecraft.Download/versions/{}/minecraft_server.{}.jar", 
         *version, *version); 
-    let mut server_jar = Vec::new();
-    reqwest::get(&url)?.read_to_end(&mut server_jar)?;
+
+    let mut response = reqwest::get(&url)?;
+
+    let length = response.headers().get::<ContentLength>()
+        .expect("No content length provided")
+        .to_le();
+    let mut pb = pbr::ProgressBar::new(length);
+    pb.set_units(pbr::Units::Bytes);
     let mut server_jar_file = File::create(path)?;
-    
-    server_jar_file.write_all(&server_jar)?; 
+    {
+        let mut output = broadcast::BroadcastWriter::new(server_jar_file, &mut pb); 
+        copy(&mut response, &mut output)?;
+    }
+    pb.finish_print(&format!("Downloaded minecraft_server.{}.jar", version));
     
     Ok(())
 }

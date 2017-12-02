@@ -1,10 +1,8 @@
-extern crate toml;
-extern crate std;
-
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::result::Result;
 use std::io::{Read, Write};
+use toml;
 
 pub static MANAGER_DIR_NAME: &str = ".mc-manager";
 
@@ -20,19 +18,19 @@ pub struct BackupConfig {
     pub dir: String
 }
 
-pub fn write_file(path: PathBuf, data: String) -> Result<(), std::io::Error> {
+pub fn write_file(path: PathBuf, data: String) -> Result<(), ::std::io::Error> {
     let mut file = File::create(&path)?;
     return file.write_all(&data.as_bytes());
 }
 
-pub fn read_file(path: &Path) -> Result<String, std::io::Error> {
+pub fn read_file(path: &Path) -> Result<String, ::std::io::Error> {
     let mut contents = String::new();
     let mut file = File::open(path)?;
     file.read_to_string(&mut contents)?;
     Ok(contents)
 }
 
-pub fn get_config(server: &String) -> Result<Config, Box<std::error::Error>> {
+pub fn get_config(server: &String) -> Result<Config, Box<::std::error::Error>> {
     let config_path = Path::new(server).join(MANAGER_DIR_NAME).join("ManagerConfig.toml");
     let mut toml = String::new();
     let mut config_file = File::open(config_path)?;
